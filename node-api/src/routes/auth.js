@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import bcrypt from 'bcryptjs';import jwt from 'jsonwebtoken';import { z } from 'zod';
+import { db } from '../lib/db.js';import { asyncHandler,HttpError } from '../lib/errors.js';import { authenticate } from '../middleware/auth.js';
+const router=Router();const creds=z.object({email:z.string().email().max(254),password:z.string().min(10).max(128)});
+const publicUser=u=>({id:u.id,name:u.name,email:u.email,role:u.role,departmentId:u.departmentId});
+router.post('/register',asyncHandler(async(req,res)=>{const v=creds.extend({name:z.string().trim().min(2).max(100)}).parse(req.body);const hash=await bcrypt.hash(v.password,12);const u=await db.user.create({data:{name:v.name,email:v.email.toLowerCase(),passwordHash:hash}});res.status(201).json({user:publicUser(u)});}));
+router.post('/login',asyncHandler(async(req,res)=>{const v=creds.parse(req.body);const u=await db.user.findUnique({where:{email:v.email.toLowerCase()}});if(!u||!(await bcrypt.compare(v.password,u.passwordHash)))throw new HttpError(401,'Invalid credentials');const token=jwt.sign({},process.env.JWT_SECRET,{subject:u.id,expiresIn:'8h',algorithm:'HS256'});res.json({token,user:publicUser(u)});}));
+router.get('/me',authenticate,(req,res)=>res.json(req.user));
+router.patch('/me',authenticate,asyncHandler(async(req,res)=>{const v=z.object({name:z.string().trim().min(2).max(100)}).parse(req.body);const u=await db.user.update({where:{id:req.user.id},data:v});res.json(publicUser(u));}));
+export default router;
