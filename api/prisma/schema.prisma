@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PENDING
+  USER
+  AGENT
+  ADMIN
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REOPENED
+}
+
+enum AiState {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id              String          @id @default(uuid())
+  name            String
+  email           String          @unique
+  passwordHash    String
+  role            Role            @default(PENDING)
+  departmentId    String?
+  department      Department?     @relation(fields: [departmentId], references: [id])
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdTickets  Ticket[]        @relation("CreatedTickets")
+  assignedTickets Ticket[]        @relation("AssignedTickets")
+  comments        Comment[]
+  notifications   Notification[]
+  history         TicketHistory[]
+}
+
+model Department {
+  id       String   @id @default(uuid())
+  name     String   @unique
+  category String?  @unique
+  users    User[]
+  tickets  Ticket[]
+}
+
+model Ticket {
+  id            String          @id @default(uuid())
+  reference     String          @unique
+  title         String
+  description   String          @db.Text
+  category      String          @default("General")
+  priority      Priority        @default(MEDIUM)
+  status        TicketStatus    @default(OPEN)
+  aiState       AiState         @default(PENDING)
+  aiReason      String?         @db.Text
+  aiSuggestions String?         @db.Text
+  createdById   String
+  createdBy     User            @relation("CreatedTickets", fields: [createdById], references: [id])
+  assignedToId  String?
+  assignedTo    User?           @relation("AssignedTickets", fields: [assignedToId], references: [id])
+  departmentId  String?
+  department    Department?     @relation(fields: [departmentId], references: [id])
+  dueAt         DateTime?
+  escalatedAt   DateTime?
+  resolvedAt    DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  comments      Comment[]
+  history       TicketHistory[]
+  attachments   Attachment[]
+
+  @@index([status, priority, createdAt])
+  @@index([createdById])
+  @@index([assignedToId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+}
+
+model TicketHistory {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id])
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+model Attachment {
+  id         String   @id @default(uuid())
+  ticketId   String
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  filename   String
+  mimeType   String
+  size       Int
+  storageKey String   @unique
+  createdAt  DateTime @default(now())
+}
