@@ -1,0 +1,15 @@
+# Netlify builds only the React/Vite frontend.
+# The Express API and PostgreSQL database must be hosted separately.
+[build]
+  base = "support-dashboard"
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Client-side routes should always return the Vite app.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
